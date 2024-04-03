@@ -1,0 +1,127 @@
+version: '1'
+
+services:
+
+  #server:
+    #build: ./nginx
+    #container_name: www
+    #privileged: true
+    #ports:
+      #- 5050
+    #networks:
+      #server_net:
+        #ipv4_address: 
+          #10.0.2.101
+
+  client-1:
+    build: ./baseimage
+    container_name: client-1
+    privileged: true
+    networks:
+      client_net_1:
+        ipv4_address: 
+          10.0.1.2
+    command: >
+      sh -c "/sbin/ip route replace default via 10.0.1.254 && /root/sleep.sh"
+    tty: true
+    depends_on:
+    - router
+
+
+  client-2:
+    build: ./baseimage
+    container_name: client-2
+    privileged: true
+    networks:
+      client_net_2:
+        ipv4_address: 
+          10.0.2.2
+    command: >
+      sh -c "/sbin/ip route replace default via 10.0.2.254 && /root/sleep.sh"
+    tty: true
+    depends_on:
+    - router  
+
+
+  external-host:
+    build: ./baseimage
+    container_name: external-host
+    privileged: true
+    networks:
+      public_net:
+        ipv4_address: 
+          172.31.255.100
+    command: >
+      sh -c "/sbin/ip r a 172.16.123.128/28 via 172.31.255.253 && /root/sleep.sh"
+    tty: true
+    depends_on:
+    - router  
+
+  #proxy:
+    #build: ./proxy
+    #container_name: proxy
+    #privileged: true
+    #networks:
+      #client_net:
+        #ipv4_address: 
+          #10.0.1.253
+
+  router:
+    container_name: router
+    build: ./baseimage
+    privileged: true
+    hostname: router
+    networks:
+      client_net_1:
+        ipv4_address: 
+          10.0.1.254
+      client_net_2:
+        ipv4_address: 
+          10.0.2.254
+      dmz_net:
+        ipv4_address: 
+          172.16.123.142
+    command: >
+      sh -c "/sbin/ip r r default via 172.16.123.139 && /root/sleep.sh"
+
+  edge_router:
+    container_name: edge_router
+    build: ./baseimage
+    privileged: true
+    hostname: edge_router
+    networks:
+      dmz_net:
+        ipv4_address: 
+          172.16.123.139
+      public_net:
+        ipv4_address: 
+          172.31.255.253
+    command: >
+      sh -c "/sbin/ip r d default via 172.16.123.129 && /sbin/ip r a default via 172.31.255.254 && /sbin/ip r a 10.0.0.0/16 via 172.16.123.142 && /root/sleep.sh"
+
+networks:
+  client_net_1:
+    ipam:
+      config:
+      - subnet: 10.0.1.0/24
+        gateway: 10.0.1.1
+  client_net_2:
+    ipam:
+      config:
+      - subnet: 10.0.2.0/24
+        gateway: 10.0.2.1
+  public_net:
+    ipam:
+      config:
+      - subnet: 172.31.255.0/24
+        gateway: 172.31.255.254
+  dmz_net:
+    ipam:
+      config:
+      - subnet: 172.16.123.128/28
+        gateway: 172.16.123.129
+  #server_net:
+    #ipam:
+      #config:
+      #- subnet: 10.0.2.0/24
+        #gateway: 10.0.2.1

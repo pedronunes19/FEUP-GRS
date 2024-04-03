@@ -1,0 +1,66 @@
+version: '1'
+
+services:
+
+  load-balancer:
+    container_name: load-balancer
+    hostname: load-balancer
+    build: ./load-balancer
+    privileged: true
+    ports:
+      - 80
+    networks:
+      server_net:
+        ipv4_address:
+          10.0.2.5
+    depends_on:
+    - servers
+
+  servers:
+    build: ./nginx
+    privileged: true
+    ports:
+      - 5050
+    deploy:
+      replicas: 3
+    networks:
+      server_net:
+
+  client:
+    build: ./baseimage
+    privileged: true
+    networks:
+      client_net:
+    deploy:
+      replicas: 2
+    command: >
+      sh -c "/sbin/ip route replace default via 10.0.1.254 && /root/sleep.sh"
+    tty: true
+    depends_on:
+    - router
+
+  router:
+    container_name: router
+    build: ./baseimage
+    privileged: true
+    hostname: router
+    networks:
+      client_net:
+        ipv4_address: 
+          10.0.1.254
+      server_net:
+        ipv4_address: 
+          10.0.2.254
+
+
+networks:
+  client_net:
+    ipam:
+      config:
+      - subnet: 10.0.1.0/24
+        gateway: 10.0.1.1
+  server_net:
+    ipam:
+      config:
+      - subnet: 10.0.2.0/24
+        gateway: 10.0.2.1
