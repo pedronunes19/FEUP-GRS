@@ -1,0 +1,7 @@
+period: 5s
+
+metrics:
+  cpu:
+    threshold: 20 
+  memory:
+    threshold : 50

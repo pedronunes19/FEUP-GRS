@@ -1,19 +1,20 @@
-package main
+package metric_collector
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 
-	utils "grs/scaler/utils"
-	. "grs/scaler/types"
+	. "grs/common/types"
+	utils "grs/common/utils"
 )
 
-func main() {
+func Run(s *sync.WaitGroup) {
 	// TODO: wrap this client
 	apiClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -54,7 +55,11 @@ func main() {
 		if err, stats := utils.StatsParser(buf.Bytes(), metrics); err == nil {
 			utils.PrettyPrint(stats)
 		}
+
+		cancel()
 	}
+
+	s.Done()
 }
 
 

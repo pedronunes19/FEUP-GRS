@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	. "grs/scaler/types"
+	. "grs/common/types"
+
+	"gopkg.in/yaml.v3"
 )
 
 func PrettyPrint(v any) {
@@ -40,4 +42,24 @@ func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
 	}
 
 	return nil, stats
+}
+
+func ConfigParser(data []byte) (error, *Config) {
+	var config Config
+
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return err, nil
+	}
+
+	return nil, &config
+}
+
+func YAMLPrettyPrint(v any) {
+	output, errParse := yaml.Marshal(v)
+
+	if errParse != nil {
+		panic(errParse)
+	}
+
+	fmt.Println(string(output))
 }

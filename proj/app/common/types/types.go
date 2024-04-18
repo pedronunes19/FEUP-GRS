@@ -32,3 +32,18 @@ type Stats struct {
 	NumberOfCPUs int16
 	CPUUsage string
 }
+
+type Config struct {
+	Period string `yaml:"period"`
+
+	Metrics struct {
+		CPU struct {
+			Threshold string `yaml:"threshold"`
+		} `yaml:"cpu"`
+
+		Memory struct {
+			Threshold string `yaml:"threshold"`
+		} `yaml:"memory"`
+		
+	} `yaml:"metrics"`
+}
