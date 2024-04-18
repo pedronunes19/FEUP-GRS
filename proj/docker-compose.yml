@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:main-ubuntu
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_INSTALL_PLUGINS=simpod-json-datasource
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+  elastic:
+    image: elasticsearch:8.13.0
+    container_name: elastic
+    ports:
+      - 9200:9200
+      - 9300:9300
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elastic-storage:/usr/share/elasticsearch/data
+
+
+volumes:
+  grafana-storage:
+  elastic-storage:

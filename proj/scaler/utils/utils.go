@@ -1,8 +1,9 @@
 package utils
 
-import(
-	"fmt"
+import (
 	"encoding/json"
+	"errors"
+	"fmt"
 
 	. "grs/scaler/types"
 )
@@ -16,11 +17,11 @@ func PrettyPrint(v any) {
 	fmt.Println(string(output))
 }
 
-func StatsParser(data []byte, metrics Metrics) Stats {
+func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
 	parseErr := json.Unmarshal(data, &metrics)
 
 	if parseErr != nil {
-		panic(parseErr)
+		return errors.New(""), nil
 	}
 
 	usedMemory := metrics.MemStats.Usage - metrics.MemStats.Stats.Cache
@@ -30,13 +31,13 @@ func StatsParser(data []byte, metrics Metrics) Stats {
 	numberOfCPUs := metrics.CPUStats.NumberOfCPUs
 	cpuUsge := ((cpuDelta / systemCPUDelta) * float64(numberOfCPUs)) * 100.0
 
-	stats := Stats{
-		UsedMemory: usedMemory,
+	stats := &Stats{
+		UsedMemory:      usedMemory,
 		AvailableMemory: availableMemory,
-		MemoryUsage: fmt.Sprintf("%.03f%%", (usedMemory / availableMemory) * 100.0),
-		NumberOfCPUs: metrics.CPUStats.NumberOfCPUs,
-		CPUUsage: fmt.Sprintf("%.03f%%", cpuUsge),
+		MemoryUsage:     fmt.Sprintf("%.03f%%", (usedMemory/availableMemory)*100.0),
+		NumberOfCPUs:    metrics.CPUStats.NumberOfCPUs,
+		CPUUsage:        fmt.Sprintf("%.03f%%", cpuUsge),
 	}
 
-	return stats
+	return nil, stats
 }
