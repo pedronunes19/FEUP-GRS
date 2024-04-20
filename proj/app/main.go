@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	. "grs/common/utils"
+	. "grs/common/types"
 	metric_collector "grs/metric-collector"
 	scaler "grs/scaler"
 )
@@ -31,8 +32,10 @@ func main() {
 	var s sync.WaitGroup
 	s.Add(2)
 
-	go metric_collector.Run(&s)
-	go scaler.Run(&s)
+	c := make(chan []*Stats)
+
+	go metric_collector.Run(&s, c)
+	go scaler.Run(&s, config, c)
 
 	s.Wait()
 }

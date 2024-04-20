@@ -14,7 +14,7 @@ import (
 	utils "grs/common/utils"
 )
 
-func Run(s *sync.WaitGroup) {
+func Run(s *sync.WaitGroup, c chan []*Stats) {
 	// TODO: wrap this client
 	apiClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -28,6 +28,8 @@ func Run(s *sync.WaitGroup) {
 	if err1 != nil {
 		panic(err1)
 	}
+
+	var allMetrics []*Stats
 
 	for _, ctr := range containers {
 		if strings.Compare(ctr.State, "running") != 0 {
@@ -54,10 +56,13 @@ func Run(s *sync.WaitGroup) {
 		var metrics Metrics
 		if err, stats := utils.StatsParser(buf.Bytes(), metrics); err == nil {
 			utils.PrettyPrint(stats)
+			allMetrics = append(allMetrics, stats)
 		}
 
 		cancel()
 	}
+
+	c <- allMetrics
 
 	s.Done()
 }

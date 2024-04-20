@@ -24,7 +24,28 @@ services:
     volumes:
       - elastic-storage:/usr/share/elasticsearch/data
 
+  load_balancer:
+    image: nginx:1.25.5-alpine
+    container_name: load_balancer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./load_balancer/config.conf:/etc/nginx/nginx.conf
+    networks:
+      grs-net:
+        ipv4_address: 172.19.0.3
+
 
 volumes:
   grafana-storage:
   elastic-storage:
+
+networks:
+  grs-net:
+    name: grs-net
+    attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
