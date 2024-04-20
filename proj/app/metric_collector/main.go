@@ -1,8 +1,10 @@
+// Implements a container application metric collector
 package metric_collector
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -14,19 +16,22 @@ import (
 	utils "grs/common/utils"
 )
 
-func Run(s *sync.WaitGroup, c chan []*Stats) {
+// Collects metrics from running containers and sends them to the Scaler through a channel
+func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 	// TODO: wrap this client
 	apiClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		return errors.New(fmt.Sprintf("In metric_collector.Run: Failed to create client -> %s", err))
 	}
+
 	defer apiClient.Close()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(*ct)
 
-	containers, err1 := apiClient.ContainerList(ctx, container.ListOptions{All: true})
-	if err1 != nil {
-		panic(err1)
+	containers, err := apiClient.ContainerList(ctx, container.ListOptions{All: true})
+	if err != nil {
+		cancel()
+		return errors.New(fmt.Sprintf("In metric_collector.Run: Failed to get containers -> %s", err))
 	}
 
 	var allMetrics []*Stats
@@ -38,14 +43,11 @@ func Run(s *sync.WaitGroup, c chan []*Stats) {
 
 		fmt.Printf("Container %s %s (status: %s) (state: %s)\n", ctr.Names[0], ctr.Image, ctr.Status, ctr.State)
 
-		// TODO: contexts do not make sense here, but if we use several go-routines (we should) we should create a "context-tree" instead of re-using the Background context
-		containerCTX, cancel := context.WithCancel(ctx)
-
 		// TODO: wrap this call
-		containerStats, err := apiClient.ContainerStats(containerCTX, ctr.ID, false)
+		containerStats, err := apiClient.ContainerStats(ctx, ctr.ID, false)
 		if err != nil {
 			cancel()
-			panic(err)
+			return errors.New(fmt.Sprintf("In metric_collector.Run: Failed to get container stats -> %s", err))
 		}
 		defer containerStats.Body.Close()
 
@@ -58,13 +60,12 @@ func Run(s *sync.WaitGroup, c chan []*Stats) {
 			utils.PrettyPrint(stats)
 			allMetrics = append(allMetrics, stats)
 		}
-
-		cancel()
 	}
 
 	c <- allMetrics
 
+	cancel()
 	s.Done()
+
+	return nil
 }
-
-

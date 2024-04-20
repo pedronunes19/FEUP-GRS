@@ -1,5 +1,6 @@
 package types
 
+// Holds the metrics collected from a container
 type Metrics struct {
 	MemStats struct {
 		Stats struct {
@@ -25,6 +26,7 @@ type Metrics struct {
 	}
 }
 
+// Holds relevant metrics of a container
 type Stats struct {
 	UsedMemory float64
 	AvailableMemory float64
@@ -33,6 +35,7 @@ type Stats struct {
 	CPUUsage string
 }
 
+// Holds data parsed from the application's config file
 type Config struct {
 	Period string `yaml:"period"`
 

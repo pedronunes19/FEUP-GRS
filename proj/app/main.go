@@ -1,30 +1,31 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"os"
 	"sync"
 
-	. "grs/common/utils"
 	. "grs/common/types"
+	. "grs/common/utils"
 	metric_collector "grs/metric-collector"
 	scaler "grs/scaler"
 )
 
-func main() {
-	fmt.Println("Starting program...")
+const CONFIG_FILE string = "config.yaml"
 
-	file, err := os.ReadFile("config.yaml")
+// Runs the application. One Go routine runs the metric collector and other runs the auto scaler 
+func main() {
+	file, err := os.ReadFile(CONFIG_FILE)
 
 	if err != nil {
-		log.Fatalln("Failed to read config file")
+		log.Fatalln("Main: Failed to read config file")
 	}
 
 	err, config := ConfigParser(file)
 
 	if err != nil {
-		log.Fatalln("Failed to parse config file")
+		log.Fatalln("Main: Failed to parse config file")
 	}
 
 	YAMLPrettyPrint(config)
@@ -34,8 +35,10 @@ func main() {
 
 	c := make(chan []*Stats)
 
-	go metric_collector.Run(&s, c)
-	go scaler.Run(&s, config, c)
+	ctx := context.Background()
+
+	go metric_collector.Run(&s, c, &ctx)
+	go scaler.Run(&s, config, c, &ctx)
 
 	s.Wait()
 }

@@ -10,20 +10,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func PrettyPrint(v any) {
+// Pretty prints JSON
+func PrettyPrint(v any) error {
 	output, errParse := json.MarshalIndent(v, "", "  ")
+
 	if errParse != nil {
-		panic(errParse)
+		return errors.New(fmt.Sprintf("In PrettyPrint: Failed to marshal data -> %s", errParse))
 	}
 
 	fmt.Println(string(output))
+
+	return nil
 }
 
+// Parses the Docker stats command returned data into a Metrics struct
 func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
 	parseErr := json.Unmarshal(data, &metrics)
 
 	if parseErr != nil {
-		return errors.New(""), nil
+		return errors.New(fmt.Sprintf("In StatsParser: Failed to parse JSON data -> %s", parseErr)), nil
 	}
 
 	usedMemory := metrics.MemStats.Usage - metrics.MemStats.Stats.Cache
@@ -44,22 +49,26 @@ func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
 	return nil, stats
 }
 
+// Parses the app's config to a Config struct
 func ConfigParser(data []byte) (error, *Config) {
 	var config Config
 
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return err, nil
+		return errors.New(fmt.Sprintf("In ConfigParser: Failed to parse config file -> %s", err)), nil
 	}
 
 	return nil, &config
 }
 
-func YAMLPrettyPrint(v any) {
+// Pretty prints YAML
+func YAMLPrettyPrint(v any) error {
 	output, errParse := yaml.Marshal(v)
 
 	if errParse != nil {
-		panic(errParse)
+		return errors.New(fmt.Sprintf("In YAMLPrettyPrint: Failed to parse YAML -> %s", errParse))
 	}
 
 	fmt.Println(string(output))
+
+	return nil
 }
