@@ -23,12 +23,14 @@ func PrettyPrint(v any) error {
 	return nil
 }
 
-// Parses the Docker stats command returned data into a Metrics struct
-func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
+// Parses the Docker stats command returned data into a Stats struct
+func StatsParser(data []byte) (*Stats, error) {
+
+	var metrics Metrics
 	parseErr := json.Unmarshal(data, &metrics)
 
 	if parseErr != nil {
-		return errors.New(fmt.Sprintf("In StatsParser: Failed to parse JSON data -> %s", parseErr)), nil
+		return nil, errors.New(fmt.Sprintf("In StatsParser: Failed to parse JSON data -> %s", parseErr))
 	}
 
 	usedMemory := metrics.MemStats.Usage - metrics.MemStats.Stats.Cache
@@ -46,7 +48,7 @@ func StatsParser(data []byte, metrics Metrics) (error, *Stats) {
 		CPUUsage:        fmt.Sprintf("%.03f%%", cpuUsge),
 	}
 
-	return nil, stats
+	return stats, nil
 }
 
 // Parses the app's config to a Config struct

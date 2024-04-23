@@ -55,8 +55,7 @@ func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 
 		buf.ReadFrom(containerStats.Body)
 
-		var metrics Metrics
-		if err, stats := utils.StatsParser(buf.Bytes(), metrics); err == nil {
+		if stats, err := utils.StatsParser(buf.Bytes()); err == nil {
 			utils.PrettyPrint(stats)
 			allMetrics = append(allMetrics, stats)
 		}

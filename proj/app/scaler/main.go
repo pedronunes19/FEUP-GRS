@@ -2,6 +2,7 @@
 package scaler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,11 +18,12 @@ import (
 	"github.com/docker/docker/client"
 
 	. "grs/common/types"
-	//utils "grs/common/utils"
+	utils "grs/common/utils"
 )
 
 const GRS_NETWORK string = "grs-net"
 const GRS_IMAGE string = "grs"
+const GRS_LOAD_BALANCER string = "load_balancer"
 
 func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context) {
 	apiClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
@@ -40,15 +42,18 @@ func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context
 		//utils.PrettyPrint(stat)
 	}
 
+	
 	startErr := startContainer(GRS_IMAGE, apiClient, &ctx)
 	if startErr != nil {
 		cancel()
 		log.Fatalln(startErr.Error())
 	}
+	startContainer(GRS_IMAGE, apiClient, &ctx)
 
 	time.Sleep(5 * time.Second)
+	
 
-	stopErr := stopContainer("grs_service", apiClient, &ctx)
+	stopErr := stopContainer(apiClient, &ctx)
 	if stopErr != nil {
 		cancel()
 		log.Fatalln(stopErr.Error())
@@ -98,9 +103,58 @@ func startContainer(imageName string, cl *client.Client, ctx *context.Context) e
 	return nil
 }
 
-func stopContainer(containerName string, cl *client.Client, ctx *context.Context) error {
+// Stops the container with less usage
+func stopContainer(cl *client.Client, ctx *context.Context) error {
 
-	containerID, err := getContainerID(containerName, cl, ctx)
+	grsContainers, err := getContainersOnNetwork(GRS_NETWORK, cl, ctx)
+
+	if err != nil {
+		return err
+	}
+
+	allStats := map[string]Stats{}
+
+	
+	for _, ctr := range *grsContainers {
+		if strings.Compare(ctr.Name, GRS_LOAD_BALANCER) == 0 { // Don't add the Load Balancer to the map, since we will never want to stop it
+			continue
+		}
+
+		stats, err := getContainerStats(ctr.Name, cl, ctx)
+
+		if err != nil {
+			return err
+		}
+		
+		allStats[ctr.Name] = *stats
+	}
+
+	/*
+	allStats["Less CPU Usage"] = Stats{
+		UsedMemory: 1000,
+		AvailableMemory: 2000,
+		MemoryUsage: "50%",
+		NumberOfCPUs: 16,
+		CPUUsage: "10%",
+	}
+
+	allStats["Most CPU Usage"] = Stats{
+		UsedMemory: 1000,
+		AvailableMemory: 2000,
+		MemoryUsage: "30%",
+		NumberOfCPUs: 16,
+		CPUUsage: "70%",
+	}*/
+
+	sorted := sortContainersByUsage(allStats, false)
+
+	for i, v := range(sorted) {
+		fmt.Printf("%d: %s\n", i, v)
+	}
+
+	leastUsedContainer := sorted[0]
+
+	containerID, err := getContainerID(leastUsedContainer, cl, ctx)
 
 	if err != nil {
 		return err
@@ -168,4 +222,66 @@ func getContainersOnNetwork(networkName string, cl *client.Client, ctx *context.
 	}
 
 	return &networkInfo.Containers, nil
+}
+
+// Returns the stats of container with name containerName 
+func getContainerStats(containerName string, cl *client.Client, ctx *context.Context) (*Stats, error) {
+
+	containerID, err := getContainerID(containerName, cl, ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	metrics, err := cl.ContainerStats(*ctx, *containerID, false)
+
+	defer metrics.Body.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(metrics.Body)
+
+	stats, err := utils.StatsParser(buf.Bytes())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// Returns a list with the containers names sorted by CPU or Memory Usage
+func sortContainersByUsage(allStats map[string]Stats, byCPUUsage bool) []string {
+
+	var pl []Pair[string, Stats]
+
+	for name, s := range allStats {
+		entry := new(Pair[string, Stats])
+		entry.Key = name
+		entry.Value = s
+		pl = append(pl, *entry)
+	}
+
+	if byCPUUsage {
+
+		cpuUsage := func(s1, s2 Stats) bool {
+			return s1.CPUUsage < s2.CPUUsage
+		}
+	
+		By(cpuUsage).Sort(pl)
+
+	} else {
+		memoryUsage := func(s1, s2 Stats) bool {
+			return s1.MemoryUsage < s2.MemoryUsage
+		}
+	
+		By(memoryUsage).Sort(pl)
+	}
+
+	var sortedContainersNames []string
+
+	for _, p := range pl {
+		sortedContainersNames = append(sortedContainersNames, p.Key)
+	}
+
+	return sortedContainersNames
 }
