@@ -2,14 +2,12 @@
 package metric_collector
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 
 	. "grs/common/types"
@@ -28,7 +26,7 @@ func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 
 	ctx, cancel := context.WithCancel(*ct)
 
-	containers, err := apiClient.ContainerList(ctx, container.ListOptions{All: true})
+	containers, err := utils.GetContainersOnNetwork(utils.GRS_NETWORK, apiClient, &ctx)
 	if err != nil {
 		cancel()
 		return errors.New(fmt.Sprintf("In metric_collector.Run: Failed to get containers -> %s", err))
@@ -36,29 +34,16 @@ func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 
 	var allMetrics []*Stats
 
-	for _, ctr := range containers {
-		if strings.Compare(ctr.State, "running") != 0 {
+	for _, ctr := range *containers {
+		cStats, _ := utils.GetContainerStats(ctr.Name, apiClient, &ctx)
+
+		if strings.Compare(ctr.Name, utils.GRS_LOAD_BALANCER) == 0 {
 			continue
 		}
-
-		fmt.Printf("Container %s %s (status: %s) (state: %s)\n", ctr.Names[0], ctr.Image, ctr.Status, ctr.State)
-
-		// TODO: wrap this call
-		containerStats, err := apiClient.ContainerStats(ctx, ctr.ID, false)
-		if err != nil {
-			cancel()
-			return errors.New(fmt.Sprintf("In metric_collector.Run: Failed to get container stats -> %s", err))
-		}
-		defer containerStats.Body.Close()
-
-		buf := new(bytes.Buffer)
-
-		buf.ReadFrom(containerStats.Body)
-
-		if stats, err := utils.StatsParser(buf.Bytes()); err == nil {
-			utils.PrettyPrint(stats)
-			allMetrics = append(allMetrics, stats)
-		}
+		
+		fmt.Printf("Container %s\n", ctr.Name)
+		utils.PrettyPrint(cStats)
+		allMetrics = append(allMetrics, cStats)
 	}
 
 	c <- allMetrics
