@@ -193,7 +193,7 @@ func AddNewServer(newServer string, cl *client.Client, ctx *context.Context) err
 	return nil
 }
 
-func RemoveServer(serveToRemove string, cl *client.Client, ctx *context.Context) error {
+func RemoveServer(serverToRemove string, cl *client.Client, ctx *context.Context) error {
 
 	oldConf, openErr := openNginxConfigFile()
 	if openErr != nil {
@@ -207,23 +207,29 @@ func RemoveServer(serveToRemove string, cl *client.Client, ctx *context.Context)
 		return errors.New(fmt.Sprintf("In RemoveServer: Failed parse Nginx old config -> %s", err.Error()))
 	}
 
-	directives := conf.FindDirectives("upstream")
+	upstreams := conf.FindUpstreams()
 
-	for _, dir := range directives {
-		fmt.Println("Found directive ", dir.GetName(), dir.GetParameters())
+	servers := upstreams[0].UpstreamServers
+	serverToRemoveIndex := -1
 
-		servers := dir.GetBlock().GetDirectives()
-		for _, server := range servers {
-			fmt.Println(server.GetName(), server.GetParameters()[0])
-			if server.GetParameters()[0] == fmt.Sprintf("%s:80", serveToRemove) {
-				fmt.Println("apagar o peras")
-				server.GetParameters()[0] = ""
-				
-			} 
+	for index, server := range servers {
+		if strings.Compare(server.Address, serverToRemove) == 0 {
+			serverToRemoveIndex = index
 		}
 	}
 
-	fmt.Printf(dumper.DumpBlock(conf.Block, dumper.IndentedStyle))
+	if serverToRemoveIndex == -1 {
+		return errors.New(fmt.Sprintf("Couldn't find server to remove with address %s", serverToRemove))
+	}
+
+	servers[serverToRemoveIndex] = servers[len(servers) - 1]
+	servers = servers[:len(servers) - 1]
+
+	upstreams[0].UpstreamServers = servers
+	
+	newConf := dumper.DumpBlock(conf.Block, dumper.IndentedStyle)
+
+	UpdateNginxConfig(newConf, cl, ctx)
 	
 	return nil
 }

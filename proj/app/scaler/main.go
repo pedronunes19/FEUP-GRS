@@ -36,19 +36,7 @@ func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context
 		//utils.PrettyPrint(stat)
 	}
 
-	/**
-	serverErr := utils.AddNewServer("peras", apiClient, &ctx)
-
-	if serverErr != nil {
-		cancel()
-		fmt.Println(serverErr.Error())
-	}
-	*/
-
-	utils.RemoveServer("peras", apiClient, &ctx)
-
 	s.Done()
-	return
 	
 	startErr := startContainer(utils.GRS_IMAGE, apiClient, &ctx)
 	if startErr != nil {
