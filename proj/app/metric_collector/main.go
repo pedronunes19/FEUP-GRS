@@ -25,6 +25,7 @@ func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 	defer apiClient.Close()
 
 	ctx, cancel := context.WithCancel(*ct)
+	defer cancel()
 
 	containers, err := utils.GetContainersOnNetwork(utils.GRS_NETWORK, apiClient, &ctx)
 	if err != nil {
@@ -48,7 +49,6 @@ func Run(s *sync.WaitGroup, c chan []*Stats, ct *context.Context) error {
 
 	c <- allMetrics
 
-	cancel()
 	s.Done()
 
 	return nil

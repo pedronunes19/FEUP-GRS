@@ -30,7 +30,7 @@ events {
 
 http {
     upstream load_balancer {
-        server modest_mcnulty:80;
+        server default_server:80;
     }
 
     server {

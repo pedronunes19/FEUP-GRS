@@ -28,34 +28,29 @@ func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context
 	defer apiClient.Close()
 
 	ctx, cancel := context.WithCancel(*ct)
+	defer cancel()
 
 	stats := <-c
 
-	for range stats {
-		//fmt.Println("Printing stats received from Metric Collector")
-		//utils.PrettyPrint(stat)
+	for _, stat := range stats {
+		fmt.Println("Printing stats received from Metric Collector")
+		utils.PrettyPrint(stat)
 	}
-
-	s.Done()
 	
 	startErr := startContainer(utils.GRS_IMAGE, apiClient, &ctx)
 	if startErr != nil {
-		cancel()
 		log.Fatalln(startErr.Error())
+		cancel()
 	}
-	startContainer(utils.GRS_IMAGE, apiClient, &ctx)
 
-	time.Sleep(5 * time.Second)
-	
+	time.Sleep(3 * time.Second)
 
 	stopErr := stopContainer(apiClient, &ctx)
 	if stopErr != nil {
-		cancel()
-		log.Fatalln(stopErr.Error())
+		fmt.Println(stopErr.Error())
 	}
 
 	s.Done()
-	cancel()
 }
 
 // Starts a container provided an image name
@@ -76,7 +71,6 @@ func startContainer(imageName string, cl *client.Client, ctx *context.Context) e
 		&container.Config{
 			Tty: false,
 			Image: imageName,
-
 		}, nil, 
 		
 		&network.NetworkingConfig{
@@ -96,6 +90,13 @@ func startContainer(imageName string, cl *client.Client, ctx *context.Context) e
 		return errors.New(fmt.Sprintf("In startContainer: Failed to start container with ID %s -> %s", response.ID, startErr.Error()))
 	}
 
+	containerName, err := utils.GetContainerName(response.ID, cl, ctx)
+	if err != nil {
+		return errors.New(fmt.Sprintf("In startContainer: Failed to get container name -> %s", err.Error()))
+	}
+
+	utils.AddNewServer(*containerName, cl, ctx)
+
 	return nil
 }
 
@@ -103,6 +104,10 @@ func startContainer(imageName string, cl *client.Client, ctx *context.Context) e
 func stopContainer(cl *client.Client, ctx *context.Context) error {
 
 	grsContainers, err := utils.GetContainersOnNetwork(utils.GRS_NETWORK, cl, ctx)
+
+	if len(*grsContainers) <= 1 { // we need to have at least one container running
+		return nil
+	}
 
 	if err != nil {
 		return err
@@ -154,6 +159,11 @@ func stopContainer(cl *client.Client, ctx *context.Context) error {
 
 	if err != nil {
 		return err
+	}
+
+	removeErr := utils.RemoveServer(leastUsedContainer, cl, ctx)
+	if removeErr != nil {
+		return errors.New(fmt.Sprintf("In stopContainer: Failed to remove server -> %s", removeErr.Error()))
 	}
 
 	stopErr := cl.ContainerStop(*ctx, *containerID, container.StopOptions{})

@@ -64,6 +64,16 @@ func GetContainerID(containerName string, cl *client.Client, ctx *context.Contex
 	return &containerID, nil
 }
 
+func GetContainerName(containerID string, cl *client.Client, ctx *context.Context) (*string, error) {
+	data, err := cl.ContainerInspect(*ctx, containerID)
+
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("In GetContainerName: Failed to inspect container -> %s", err.Error()))
+	}
+
+	return &data.Name, nil
+}
+
 // Returns the ID of a network with name networkName
 func GetNetworkID(networkName string, cl *client.Client, ctx *context.Context) (*string, error) {
 
@@ -152,13 +162,21 @@ func UpdateNginxConfig(newConf string, cl *client.Client, ctx *context.Context) 
 		return errors.New(fmt.Sprintf("In UpdateNginxConfig: Failed to write to configfile -> %s", writeErr.Error()))
 	}
 
-	_, execErr := cl.ContainerExecCreate(*ctx, GRS_LOAD_BALANCER, types.ExecConfig{
-		Tty: false,
+	execID, execErr := cl.ContainerExecCreate(*ctx, GRS_LOAD_BALANCER, types.ExecConfig{
+		Tty: true,
 		Cmd: []string {"kill", "-1", "1"},
+		Privileged: true,
+		WorkingDir: "/",
 	})
 
 	if execErr != nil {
-		return errors.New(fmt.Sprintf("In UpdateNginxConfig: Failed to send signal to Nginx -> %s", execErr.Error()))
+		return errors.New(fmt.Sprintf("In UpdateNginxConfig: Failed to create exec signal to Nginx -> %s", execErr.Error()))
+	}
+
+	execStartErr := cl.ContainerExecStart(*ctx, execID.ID, types.ExecStartCheck{Tty: true});
+	
+	if execStartErr != nil {
+		return errors.New(fmt.Sprintf("In UpdateNginxConfig: Failed to send signal to Nginx -> %s", execStartErr.Error()))
 	}
 
 	return nil
@@ -181,7 +199,7 @@ func AddNewServer(newServer string, cl *client.Client, ctx *context.Context) err
 	upstreams := conf.FindUpstreams()
 
 	upstreams[0].AddServer(&config.UpstreamServer{
-		Address: fmt.Sprintf("%s:80", newServer),
+		Address: fmt.Sprintf("%s:80", newServer[1:]),
 	})
 
 	newConf := dumper.DumpBlock(conf.Block, dumper.IndentedStyle)
@@ -213,7 +231,7 @@ func RemoveServer(serverToRemove string, cl *client.Client, ctx *context.Context
 	serverToRemoveIndex := -1
 
 	for index, server := range servers {
-		if strings.Compare(server.Address, serverToRemove) == 0 {
+		if strings.Compare(server.Address, fmt.Sprintf("%s:80", serverToRemove)) == 0 {
 			serverToRemoveIndex = index
 		}
 	}
@@ -229,7 +247,10 @@ func RemoveServer(serverToRemove string, cl *client.Client, ctx *context.Context
 	
 	newConf := dumper.DumpBlock(conf.Block, dumper.IndentedStyle)
 
-	UpdateNginxConfig(newConf, cl, ctx)
+	updateErr := UpdateNginxConfig(newConf, cl, ctx)
+	if updateErr != nil {
+		return errors.New(fmt.Sprintf("In RemoveServer: Couldn't update nginx config -> %s", updateErr.Error()))
+	}
 	
 	return nil
 }
