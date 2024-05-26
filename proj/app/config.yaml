@@ -1,4 +1,4 @@
-period: 5s
+period: 10s
 
 metrics:
   cpu:

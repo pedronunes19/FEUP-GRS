@@ -19,7 +19,7 @@ import (
 	utils "grs/common/utils"
 )
 
-func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context) {
+func Run(s *sync.WaitGroup, config *Config, stats []*Stats, ct *context.Context) {
 	apiClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 
 	if err != nil {
@@ -29,8 +29,6 @@ func Run(s *sync.WaitGroup, config *Config, c chan []*Stats, ct *context.Context
 
 	ctx, cancel := context.WithCancel(*ct)
 	defer cancel()
-
-	stats := <-c
 
 	for _, stat := range stats {
 		fmt.Println("Printing stats received from Metric Collector")

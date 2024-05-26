@@ -2,14 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	. "grs/common/types"
 	. "grs/common/utils"
 	metric_collector "grs/metric-collector"
 	scaler "grs/scaler"
+
+	"github.com/elastic/go-elasticsearch/v8/esapi"
+	"github.com/elastic/go-elasticsearch/v8"
 )
 
 const CONFIG_FILE string = "config.yaml"
@@ -30,15 +37,85 @@ func main() {
 
 	YAMLPrettyPrint(config)
 
-	var s sync.WaitGroup
-	s.Add(2)
+	periodStr := config.Period[:len(config.Period)-1]
+	
+	period, err := strconv.Atoi(periodStr)
 
-	c := make(chan []*Stats)
+	if err != nil {
+		log.Fatalln("Error converting period string to integer")
+		return
+	}
 
-	ctx := context.Background()
+	interval := time.Duration(period) * time.Second
 
-	go metric_collector.Run(&s, c, &ctx)
-	go scaler.Run(&s, config, c, &ctx)
+	for {
+		var s sync.WaitGroup
+		s.Add(2)
 
-	s.Wait()
+		c := make(chan []*Stats)
+		ctx := context.Background()
+
+		go metric_collector.Run(&s, c, &ctx)
+
+		stats := <-c
+		close(c)
+
+		go scaler.Run(&s, config, stats, &ctx)
+
+		s.Wait()
+
+		for _, stat := range stats {
+			log.Println("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+			log.Println(stat)
+			// Convert stat to JSON
+			output, errParse := json.Marshal(stat)
+			if errParse != nil {
+				log.Fatalln("Failed to marshal data:", errParse)
+			}
+
+			// Unmarshal JSON to map
+			var data map[string]interface{}
+			if err := json.Unmarshal(output, &data); err != nil {
+				log.Fatalln("Failed to unmarshal JSON:", err)
+			}
+
+			// Add timestamp
+			data["timestamp"] = time.Now().Format(time.RFC3339)
+
+			// Marshal back to JSON
+			updatedOutput, err := json.MarshalIndent(data, "", "  ")
+			
+			if err != nil {
+				log.Fatalln("Failed to marshal updated data:", err)
+			}
+
+			es, err := elasticsearch.NewDefaultClient()
+			if err != nil {
+				log.Fatalf("Error creating the Elastic client: %s", err)
+			}
+
+
+			req := esapi.IndexRequest{
+				Index:   "containers",
+				Body:    strings.NewReader(string(updatedOutput)),
+				Refresh: "true",
+			}
+		
+			res, err := req.Do(context.Background(), es)
+			if err != nil {
+				log.Fatalf("Error getting response: %s", err)
+			}
+		
+			if res.IsError() {
+				log.Printf("[%s] Error indexing document", res.Status())
+			} else {
+				log.Printf("[%s] Document indexed.", res.Status())
+			}
+
+			res.Body.Close()
+
+		}
+
+		time.Sleep(interval)
+	}
 }
