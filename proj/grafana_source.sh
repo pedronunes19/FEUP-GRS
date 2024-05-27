@@ -4,7 +4,7 @@ GRAFANA_URL="http://localhost:3000"
 GRAFANA_USER="admin"
 GRAFANA_PASSWORD="admin"
 
-ELASTICSEARCH_URL="http://localhost:9200"
+ELASTICSEARCH_URL="http://elastic:9200"
 DATASOURCE_NAME="Elasticsearch"
 INDEX_NAME="containers"
 TIME_FIELD_NAME="timestamp"
