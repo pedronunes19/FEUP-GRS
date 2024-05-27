@@ -80,6 +80,8 @@ func main() {
 
 			// Add timestamp
 			data["timestamp"] = time.Now().Format(time.RFC3339)
+			data["CPUUsage"], _ = strconv.ParseFloat(stat.CPUUsage[:len(stat.CPUUsage) - 1], 32)
+			data["MemoryUsage"], _ = strconv.ParseFloat(stat.MemoryUsage[:len(stat.MemoryUsage) - 1], 32)
 
 			// Marshal back to JSON
 			updatedOutput, err := json.MarshalIndent(data, "", "  ")
