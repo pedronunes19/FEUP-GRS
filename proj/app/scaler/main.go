@@ -5,7 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"math"
+	"strconv"
 
 	"log"
 	"strings"
@@ -30,24 +31,48 @@ func Run(s *sync.WaitGroup, config *Config, stats []*Stats, ct *context.Context)
 	ctx, cancel := context.WithCancel(*ct)
 	defer cancel()
 
+	runningContainers, err := utils.GetContainersOnNetwork(utils.GRS_NETWORK, apiClient, &ctx)
+	if err != nil {
+		log.Fatalln("In scaler.Run: Failed to get containers on GRS network")
+	}
+
+	runningReplicas := len(*runningContainers) - 1 // remove load balancer
+
 	for _, stat := range stats {
 		fmt.Println("Printing stats received from Metric Collector")
 		utils.PrettyPrint(stat)
+		memUsage, convErr := strconv.ParseFloat(strings.Split(stat.MemoryUsage, "%")[0], 32)
+		
+		if convErr != nil {
+			fmt.Println("Error converting string to float, skipping...")
+			continue
+		}
+
+		memThreshold, convErr := strconv.ParseFloat(config.Metrics.Memory.Threshold, 32)
+		if convErr != nil {
+			fmt.Println("Error converting memory threshold to float, skipping...")
+			continue
+		}
+
+		cpuUsage, convErr := strconv.ParseFloat(strings.Split(stat.CPUUsage, "%")[0], 32)
+
+		cpuThreshold, convErr := strconv.ParseFloat(config.Metrics.CPU.Threshold, 32)
+
+		desiredReplicas := max(math.Ceil(float64(runningReplicas) * (memUsage / memThreshold)), math.Ceil(float64(runningReplicas) * (cpuUsage / cpuThreshold)))
+
+		fmt.Println(desiredReplicas, runningReplicas, memUsage, memThreshold)
+
+		if desiredReplicas > float64(runningReplicas) {
+			startContainer(utils.GRS_IMAGE, apiClient, &ctx)
+			break
+		}
+
+		if desiredReplicas < float64(runningReplicas) {
+			stopContainer(apiClient, &ctx)
+			break
+		}
 	}
 	
-	startErr := startContainer(utils.GRS_IMAGE, apiClient, &ctx)
-	if startErr != nil {
-		log.Fatalln(startErr.Error())
-		cancel()
-	}
-
-	time.Sleep(3 * time.Second)
-
-	stopErr := stopContainer(apiClient, &ctx)
-	if stopErr != nil {
-		fmt.Println(stopErr.Error())
-	}
-
 	s.Done()
 }
 

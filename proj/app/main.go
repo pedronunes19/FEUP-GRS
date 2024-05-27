@@ -65,7 +65,6 @@ func main() {
 		s.Wait()
 
 		for _, stat := range stats {
-			log.Println("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 			log.Println(stat)
 			// Convert stat to JSON
 			output, errParse := json.Marshal(stat)

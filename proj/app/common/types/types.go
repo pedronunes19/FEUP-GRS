@@ -7,7 +7,7 @@ type Metrics struct {
 	MemStats struct {
 		Stats struct {
 			Cache float64 `json:"cache"`
-		}
+		} `json:"stats"`
 		Usage float64 `json:"usage"`
 		Limit float64 `json:"limit"`
 	} `json:"memory_stats"`
@@ -25,7 +25,7 @@ type Metrics struct {
 			TotalUsage float64 `json:"total_usage"`
 		} `json:"cpu_usage"`
 		SystemCPUUsage float64 `json:"system_cpu_usage"`
-	}
+	} `json:"precpu_stats"`
 }
 
 // Holds relevant metrics of a container
